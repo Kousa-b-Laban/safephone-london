@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { collection, addDoc, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import IncidentForm from '@/components/IncidentForm';
+import { fetchCrimeData, CrimeData, CRIME_CATEGORY_MAPPING } from '@/lib/policeApi';
 
 // Dynamic import for Map to avoid SSR issues with Mapbox
 const Map = dynamic(() => import('@/components/Map'), {
@@ -28,11 +29,58 @@ interface Incident {
   timestamp: Date;
 }
 
+interface PoliceStats {
+  total: number;
+  theftFromPerson: number;
+  robbery: number;
+  otherTheft: number;
+}
+
 export default function Home() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [policeCrimes, setPoliceCrimes] = useState<CrimeData[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [stats, setStats] = useState({ total: 0, theft: 0, suspicious: 0, safe: 0 });
+  const [policeStats, setPoliceStats] = useState<PoliceStats>({ total: 0, theftFromPerson: 0, robbery: 0, otherTheft: 0 });
+  const [crimeDataLoading, setCrimeDataLoading] = useState(false);
+  const [crimeDataError, setCrimeDataError] = useState<string | null>(null);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({ lat: 51.5074, lng: -0.1276 }); // London default
+
+  // Load UK Police crime data
+  useEffect(() => {
+    const loadPoliceCrimeData = async () => {
+      setCrimeDataLoading(true);
+      setCrimeDataError(null);
+
+      try {
+        console.log('Fetching Police API crime data for:', mapCenter);
+        const crimes = await fetchCrimeData(mapCenter.lat, mapCenter.lng);
+        setPoliceCrimes(crimes);
+
+        // Calculate police crime stats
+        const theftFromPerson = crimes.filter(c => c.category === 'theft-from-the-person').length;
+        const robbery = crimes.filter(c => c.category === 'robbery').length;
+        const otherTheft = crimes.filter(c => c.category === 'other-theft').length;
+
+        setPoliceStats({
+          total: crimes.length,
+          theftFromPerson,
+          robbery,
+          otherTheft,
+        });
+
+        console.log('Police crime data loaded:', crimes.length, 'records');
+      } catch (error) {
+        console.error('Failed to load police crime data:', error);
+        setCrimeDataError(error instanceof Error ? error.message : 'Failed to load crime data');
+      } finally {
+        setCrimeDataLoading(false);
+      }
+    };
+
+    loadPoliceCrimeData();
+  }, [mapCenter]);
 
   // Load incidents from Firebase
   useEffect(() => {
@@ -121,32 +169,49 @@ export default function Home() {
       <div className="bg-gray-900/50 border-b border-gray-800 p-3">
         <div className="flex justify-around text-center">
           <div>
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <div className="text-xs text-gray-400">Total Reports</div>
+            <div className="text-2xl font-bold">{policeStats.total}</div>
+            <div className="text-xs text-gray-400">Police Records</div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-red-500">{stats.theft}</div>
-            <div className="text-xs text-gray-400">Thefts</div>
+            <div className="text-2xl font-bold text-red-500">{policeStats.theftFromPerson}</div>
+            <div className="text-xs text-gray-400">Theft from Person</div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-amber-500">{stats.suspicious}</div>
-            <div className="text-xs text-gray-400">Suspicious</div>
+            <div className="text-2xl font-bold text-orange-500">{policeStats.robbery}</div>
+            <div className="text-xs text-gray-400">Robbery</div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-emerald-500">{stats.safe}</div>
-            <div className="text-xs text-gray-400">Safe Zones</div>
+            <div className="text-2xl font-bold text-amber-500">{stats.total}</div>
+            <div className="text-xs text-gray-400">User Reports</div>
           </div>
         </div>
       </div>
 
       {/* Map */}
       <main className="flex-1 relative">
-        <Map incidents={incidents} onMapClick={handleMapClick} />
+        <Map
+          incidents={incidents}
+          policeCrimes={policeCrimes}
+          onMapClick={handleMapClick}
+        />
 
-        {/* Instructions Overlay */}
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black/80 px-4 py-2 rounded-lg text-sm">
-          Tap anywhere on the map to report an incident
-        </div>
+        {/* Loading/Error Overlay */}
+        {crimeDataLoading && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-900/90 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            Loading police crime data...
+          </div>
+        )}
+        {crimeDataError && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-red-900/90 px-4 py-2 rounded-lg text-sm">
+            {crimeDataError}
+          </div>
+        )}
+        {!crimeDataLoading && !crimeDataError && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black/80 px-4 py-2 rounded-lg text-sm">
+            Tap anywhere on the map to report an incident
+          </div>
+        )}
       </main>
 
       {/* Incident Form Modal */}
