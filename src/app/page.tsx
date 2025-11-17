@@ -37,6 +37,8 @@ interface PoliceStats {
 }
 
 export default function Home() {
+  console.log('=== Home component rendering ===');
+
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [policeCrimes, setPoliceCrimes] = useState<CrimeData[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -47,15 +49,22 @@ export default function Home() {
   const [crimeDataError, setCrimeDataError] = useState<string | null>(null);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({ lat: 51.5074, lng: -0.1276 }); // London default
 
-  // Load UK Police crime data
+  console.log('Current mapCenter:', mapCenter);
+
+  // Load UK Police crime data - runs on mount and when mapCenter changes
   useEffect(() => {
+    console.log('=== Crime data useEffect TRIGGERED ===');
+    console.log('mapCenter.lat:', mapCenter.lat, 'mapCenter.lng:', mapCenter.lng);
+
     const loadPoliceCrimeData = async () => {
+      console.log('=== loadPoliceCrimeData function CALLED ===');
       setCrimeDataLoading(true);
       setCrimeDataError(null);
 
       try {
-        console.log('Fetching Police API crime data for:', mapCenter);
+        console.log('About to call fetchCrimeData with:', mapCenter.lat, mapCenter.lng);
         const crimes = await fetchCrimeData(mapCenter.lat, mapCenter.lng);
+        console.log('fetchCrimeData returned:', crimes);
         setPoliceCrimes(crimes);
 
         // Calculate police crime stats
@@ -71,16 +80,21 @@ export default function Home() {
         });
 
         console.log('Police crime data loaded:', crimes.length, 'records');
+        console.log('Stats:', { total: crimes.length, theftFromPerson, robbery, otherTheft });
       } catch (error) {
-        console.error('Failed to load police crime data:', error);
+        console.error('=== CRIME DATA FETCH ERROR ===');
+        console.error('Error object:', error);
+        console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
         setCrimeDataError(error instanceof Error ? error.message : 'Failed to load crime data');
       } finally {
+        console.log('=== loadPoliceCrimeData COMPLETE ===');
         setCrimeDataLoading(false);
       }
     };
 
+    console.log('Calling loadPoliceCrimeData...');
     loadPoliceCrimeData();
-  }, [mapCenter]);
+  }, [mapCenter.lat, mapCenter.lng]); // Use primitive values, not object reference
 
   // Load incidents from Firebase
   useEffect(() => {
