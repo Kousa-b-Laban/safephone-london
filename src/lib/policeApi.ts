@@ -80,6 +80,9 @@ export async function fetchCrimeData(
   lng: number,
   date?: string
 ): Promise<CrimeData[]> {
+  console.log('=== fetchCrimeData CALLED ===');
+  console.log('Parameters:', { lat, lng, date });
+
   try {
     // Build the API URL
     const baseUrl = 'https://data.police.uk/api/crimes-street/all-crime';
@@ -93,13 +96,18 @@ export async function fetchCrimeData(
     }
 
     const url = `${baseUrl}?${params.toString()}`;
-    console.log('Fetching crime data from:', url);
+    console.log('=== MAKING FETCH REQUEST ===');
+    console.log('URL:', url);
 
     const response = await fetch(url, {
       headers: {
         'Accept': 'application/json',
       },
     });
+
+    console.log('=== FETCH RESPONSE RECEIVED ===');
+    console.log('Status:', response.status, response.statusText);
+    console.log('OK:', response.ok);
 
     if (!response.ok) {
       if (response.status === 503) {
